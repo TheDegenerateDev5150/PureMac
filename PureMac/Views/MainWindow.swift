@@ -11,36 +11,45 @@ struct MainWindow: View {
         } detail: {
             detailView
         }
-        .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+        .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
         .frame(minWidth: 860, minHeight: 520)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             appState.checkFullDiskAccess()
         }
     }
 
+    // All sidebar items as a flat array so ForEach gives proper selectability
+    private var allSidebarItems: [SidebarItem] {
+        var items: [SidebarItem] = [
+            SidebarItem(section: .apps, label: "Installed Apps", icon: "square.grid.2x2", badge: "\(appState.installedApps.count)", group: "Applications"),
+            SidebarItem(section: .orphans, label: "Orphaned Files", icon: "doc.questionmark", badge: appState.orphanedFiles.count > 0 ? "\(appState.orphanedFiles.count)" : nil, group: "Applications"),
+        ]
+        for category in CleaningCategory.scannable {
+            let size = appState.categoryResults[category]?.totalSize ?? 0
+            let badge = size > 0 ? ByteCountFormatter.string(fromByteCount: size, countStyle: .file) : nil
+            items.append(SidebarItem(section: .cleaning(category), label: category.rawValue, icon: category.icon, badge: badge, group: "Cleaning"))
+        }
+        return items
+    }
+
     private var sidebar: some View {
         List(selection: $selectedSection) {
-            Section("Applications") {
-                Label("Installed Apps", systemImage: "square.grid.2x2")
-                    .tag(AppSection.apps)
-                    .badge(appState.installedApps.count)
-                Label("Orphaned Files", systemImage: "doc.questionmark")
-                    .tag(AppSection.orphans)
-                    .badge(appState.orphanedFiles.count)
-            }
-
-            Section("Cleaning") {
-                ForEach(CleaningCategory.scannable) { category in
-                    HStack {
-                        Label(category.rawValue, systemImage: category.icon)
-                        Spacer()
-                        if let size = appState.categoryResults[category]?.totalSize, size > 0 {
-                            Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+            let grouped = Dictionary(grouping: allSidebarItems, by: \.group)
+            let order = ["Applications", "Cleaning"]
+            ForEach(order, id: \.self) { group in
+                Section(group) {
+                    ForEach(grouped[group] ?? [], id: \.section) { item in
+                        HStack {
+                            Label(item.label, systemImage: item.icon)
+                            Spacer()
+                            if let badge = item.badge {
+                                Text(badge)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        .tag(item.section)
                     }
-                    .tag(AppSection.cleaning(category))
                 }
             }
         }
@@ -65,4 +74,12 @@ struct MainWindow: View {
             EmptyStateView("PureMac", systemImage: "sparkles", description: "Select a category from the sidebar to get started.")
         }
     }
+}
+
+private struct SidebarItem {
+    let section: AppSection
+    let label: String
+    let icon: String
+    let badge: String?
+    let group: String
 }

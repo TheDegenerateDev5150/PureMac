@@ -46,9 +46,20 @@ actor ScanEngine {
             }
             info.usedSpace = info.totalSpace - info.freeSpace
 
-            // Calculate purgeable space from Time Machine local snapshots
-            // Purgeable = space used by local snapshots that macOS can reclaim
-            info.purgeableSpace = getLocalSnapshotSize()
+            // Use URLResourceValues for accurate purgeable space detection
+            let rootURL = URL(fileURLWithPath: "/")
+            let values = try rootURL.resourceValues(forKeys: [
+                .volumeAvailableCapacityForImportantUsageKey,
+                .volumeAvailableCapacityKey
+            ])
+            if let importantCapacity = values.volumeAvailableCapacityForImportantUsage,
+               let freeCapacity = values.volumeAvailableCapacity {
+                // Purgeable = important capacity (free + purgeable) minus actual free
+                let purgeable = importantCapacity - Int64(freeCapacity)
+                if purgeable > 10 * 1024 * 1024 { // Only report if > 10 MB
+                    info.purgeableSpace = purgeable
+                }
+            }
         } catch {
             Logger.shared.log("Disk info unavailable: \(error.localizedDescription)", level: .warning)
         }
@@ -202,33 +213,33 @@ actor ScanEngine {
         var items: [CleanableItem] = []
         var totalSize: Int64 = 0
 
-        // List Time Machine local snapshots - these are the main purgeable items
-        let snapshots = getLocalSnapshots()
-        for snapshot in snapshots {
+        // Detect APFS purgeable space via URLResourceValues (no admin needed)
+        let diskInfo = getDiskInfo()
+        if diskInfo.purgeableSpace > 0 {
             items.append(CleanableItem(
-                name: "TM Snapshot: \(snapshot.name)",
-                path: snapshot.name,
-                size: snapshot.size,
+                name: "APFS Purgeable Space",
+                path: "/",
+                size: diskInfo.purgeableSpace,
                 category: .purgeableSpace,
                 isSelected: true,
-                lastModified: snapshot.date
+                lastModified: nil
             ))
-            totalSize += snapshot.size
+            totalSize = diskInfo.purgeableSpace
         }
 
-        // If no snapshots found but system reports purgeable, show a single entry
-        if items.isEmpty {
-            let diskInfo = getDiskInfo()
-            if diskInfo.purgeableSpace > 0 {
+        // Also list Time Machine local snapshots if any exist
+        let snapshots = getLocalSnapshots()
+        for snapshot in snapshots {
+            let snapshotSize = snapshot.size > 0 ? snapshot.size : 0
+            if snapshotSize > 0 {
                 items.append(CleanableItem(
-                    name: "APFS Purgeable Space",
-                    path: "/",
-                    size: diskInfo.purgeableSpace,
+                    name: "TM Snapshot: \(snapshot.name)",
+                    path: snapshot.name,
+                    size: snapshotSize,
                     category: .purgeableSpace,
-                    isSelected: true,
-                    lastModified: nil
+                    isSelected: false,
+                    lastModified: snapshot.date
                 ))
-                totalSize = diskInfo.purgeableSpace
             }
         }
 
