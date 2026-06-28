@@ -5,6 +5,12 @@ struct OrphanListView: View {
     @State private var selectedOrphans: Set<URL> = []
     @State private var isRemoving = false
     @State private var removalErrorMessage: String?
+    /// Orphan sizes computed off the main thread. Orphans are exactly the large
+    /// leftovers (multi-GB Caches/Containers/Application Support), and their
+    /// size is a recursive directory walk — calling it from `body` would re-walk
+    /// every realized row on each selection toggle and beachball the UI. We walk
+    /// once off-main per result set and rows read the cached value.
+    @State private var sizeCache: [URL: Int64] = [:]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -27,7 +33,7 @@ struct OrphanListView: View {
                         OrphanRowView(
                             fileURL: fileURL,
                             isSelected: orphanBinding(for: fileURL),
-                            fileSize: fileSize(fileURL),
+                            fileSize: sizeCache[fileURL],
                             onReveal: { revealInFinder(fileURL) },
                             onCopyPath: {
                                 NSPasteboard.general.clearContents()
@@ -49,6 +55,21 @@ struct OrphanListView: View {
             }
         }
         .navigationTitle(orphanedFilesTitle)
+        .task(id: appState.orphanedFiles) {
+            // Recompute off the main thread whenever the orphan set changes
+            // (new scan, removals). FileSizeCalculator is a plain static helper
+            // with no main-actor isolation, so it runs safely on a detached
+            // background task; the result is applied back on the main actor.
+            let urls = appState.orphanedFiles
+            let sizes = await Task.detached(priority: .utility) { () -> [URL: Int64] in
+                var out: [URL: Int64] = [:]
+                for url in urls {
+                    out[url] = FileSizeCalculator.size(of: url) ?? 0
+                }
+                return out
+            }.value
+            sizeCache = sizes
+        }
         .toolbar {
             ToolbarItemGroup {
                 if !appState.orphanedFiles.isEmpty {
@@ -122,10 +143,6 @@ struct OrphanListView: View {
                 }
             }
         )
-    }
-
-    private func fileSize(_ url: URL) -> Int64? {
-        FileSizeCalculator.size(of: url)
     }
 
     private func removeSelectedOrphans() async {

@@ -14,8 +14,14 @@ enum FileSizeCalculator {
     /// On-disk allocated size of `url`. Recurses into directories.
     /// Returns `nil` if the item can't be read at all.
     static func size(of url: URL) -> Int64? {
-        let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
-        if values?.isDirectory == true {
+        let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        // Treat a symlink as a file (size of the link itself), never recursing
+        // into its target. `.isDirectoryKey` resolves symlinks, so without this
+        // guard a top-level symlink-to-directory would be walked as the target's
+        // full tree — inflating the size, escaping the item's real footprint,
+        // and mismatching deletion (removeItem deletes only the link). Check
+        // isSymbolicLink first so the directory branch only sees real dirs.
+        if values?.isSymbolicLink != true, values?.isDirectory == true {
             return directorySize(of: url)
         }
         return fileSize(of: url)
@@ -31,7 +37,7 @@ enum FileSizeCalculator {
             return Int64(size)
         }
         guard let attrs = try? fileManager.attributesOfItem(atPath: url.path),
-              let size = attrs[.size] as? Int64 else { return nil }
+              let size = (attrs[.size] as? NSNumber)?.int64Value else { return nil }
         return size
     }
 
