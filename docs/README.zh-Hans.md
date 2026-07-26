@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../screenshot.png" alt="PureMac" width="700">
+  <img src="../screenshots/smart-care.png" alt="PureMac" width="700">
 </p>
 
 <p align="center">

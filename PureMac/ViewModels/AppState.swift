@@ -829,6 +829,8 @@ final class AppState: ObservableObject {
 
             scanProgress = 1.0
             scanTicker.path = ""
+            scanState = .scanning(progress: 1.0, currentCategory: "Finishing scan")
+            try? await Task.sleep(nanoseconds: 800_000_000)
             scanState = .completed
             loadDiskInfo()
         }
@@ -853,6 +855,8 @@ final class AppState: ObservableObject {
             totalJunkSize = categoryResults.values.reduce(0) { $0 + $1.totalSize }
             scanProgress = 1.0
             scanTicker.path = ""
+            scanState = .scanning(progress: 1.0, currentCategory: "Finishing scan")
+            try? await Task.sleep(nanoseconds: 800_000_000)
             scanState = .completed
         }
     }

@@ -73,6 +73,17 @@ enum TintGradient {
         colors: [Tint.blue, Tint.purple],
         startPoint: .topLeading, endPoint: .bottomTrailing
     )
+    /// Immersive Smart Care backdrop. Kept separate from `accent` so primary
+    /// controls stay bright while the dashboard can use a deeper scenic plane.
+    static let smartCare = LinearGradient(
+        colors: [
+            Color(red: 0.025, green: 0.031, blue: 0.047),
+            Color(red: 0.035, green: 0.051, blue: 0.086),
+            Color(red: 0.018, green: 0.071, blue: 0.108)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
     static let destructive = LinearGradient(
         colors: [Tint.red, Tint.red.opacity(0.8)],
         startPoint: .top, endPoint: .bottom
