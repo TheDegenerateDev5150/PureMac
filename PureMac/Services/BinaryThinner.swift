@@ -2,16 +2,30 @@ import Foundation
 
 /// Strips foreign-architecture slices from the fat binaries of one app
 /// bundle (a UniversalBinaryFinding from UniversalBinaryScanner) and ad-hoc
-/// re-signs the bundle so Gatekeeper still accepts it. Also removes .lproj
-/// localization folders through the same flow, because deleting sealed
-/// resources with a plain unlink breaks the bundle's signature.
+/// re-signs the resealed copy so it still passes `codesign --verify`. Also
+/// removes .lproj localization folders through the same flow, because
+/// deleting sealed resources with a plain unlink breaks the bundle's
+/// signature.
+///
+/// Only unsigned or already ad-hoc bundles are ever modified. A bundle
+/// carrying a real Developer ID / notarized signature is refused up front:
+/// stripping a slice rewrites the Mach-O and destroys that signature, and an
+/// ad-hoc re-sign — though it satisfies `codesign --verify` — is rejected by
+/// Gatekeeper (`spctl`), which treats an ad-hoc identity as un-notarized. It
+/// also breaks Sparkle-style auto-updaters and makes apps that verify their
+/// own Developer ID at launch (MacUpdater is the canonical example) refuse to
+/// run and report themselves "damaged". The original authority cannot be
+/// restored without the vendor's private key, so such bundles are left alone.
 ///
 /// Safety model — the original bundle is never modified in place:
-///   1. Entitlement gate: apps claiming provisioning-backed entitlements
-///      (com.apple.developer.*, com.apple.application-identifier) are
-///      refused outright. Those entitlements are only honored under an
-///      Apple-issued certificate; an ad-hoc signature carrying them is
-///      killed by AMFI at spawn.
+///   1. Signature gate: bundles carrying a real (Developer ID / Apple / Mac
+///      App Store) signature are refused, because ad-hoc re-signing cannot
+///      preserve their notarized trust. Apps claiming provisioning-backed
+///      entitlements (com.apple.developer.*, com.apple.application-identifier)
+///      are refused with a more specific error for the same underlying
+///      reason — those entitlements are only honored under an Apple-issued
+///      certificate, and an ad-hoc signature carrying them is killed by AMFI
+///      at spawn.
 ///   2. Preflight: the bundle and its parent directory must be writable by
 ///      the current user (the swap below is two renames in the parent).
 ///      Otherwise fail with `needsAdmin` before touching anything; there
@@ -41,6 +55,10 @@ actor BinaryThinner {
         /// its original developer signature; re-signing would stop it
         /// launching, so it is refused before anything is staged.
         case restrictedEntitlements(String)
+        /// Bundle carries a real Developer ID / notarized signature that lipo
+        /// would invalidate. Ad-hoc re-signing cannot restore notarized trust,
+        /// so the bundle is refused before anything is staged.
+        case signatureProtected(String)
         case lipoFailed(String, String)
         case swapFailed(String, String)
         case codesignFailed(String, String)
@@ -53,6 +71,8 @@ actor BinaryThinner {
                 return "Not writable by current user: \(path)"
             case .restrictedEntitlements(let app):
                 return "Cannot modify \(app): its entitlements require the original developer signature"
+            case .signatureProtected(let app):
+                return "Cannot thin \(app): it is signed and notarized, and stripping a slice would break its signature"
             case .lipoFailed(let path, let detail):
                 return "lipo failed for \(path): \(detail)"
             case .swapFailed(let path, let detail):
@@ -135,6 +155,9 @@ actor BinaryThinner {
     ) -> Result<Int64, Error> {
         if hasRestrictedEntitlements(appPath) {
             return .failure(ThinningError.restrictedEntitlements(appName))
+        }
+        if hasProtectedSignature(appPath) {
+            return .failure(ThinningError.signatureProtected(appName))
         }
 
         let parentDir = (appPath as NSString).deletingLastPathComponent
@@ -291,6 +314,27 @@ actor BinaryThinner {
         guard result.status == 0 else { return false }
         return result.stdout.contains("com.apple.developer.")
             || result.stdout.contains("com.apple.application-identifier")
+    }
+
+    /// True when the bundle carries a real (Developer ID, Apple, or Mac App
+    /// Store) code signature. Stripping an arch slice rewrites the Mach-O and
+    /// destroys that signature; an ad-hoc re-sign lets the copy pass
+    /// `codesign --verify` but not Gatekeeper (`spctl`), which rejects ad-hoc
+    /// identities as un-notarized — so auto-updaters break and apps that check
+    /// their own Developer ID at launch (e.g. MacUpdater) refuse to run and
+    /// report themselves "damaged". The original authority cannot be restored
+    /// without the vendor's private key, so these bundles are never thinned.
+    /// Only unsigned or already ad-hoc bundles — which carry no notarized
+    /// trust to lose — return false here.
+    private func hasProtectedSignature(_ appPath: String) -> Bool {
+        // `codesign -d` prints the signature summary to stderr.
+        let result = runProcess("/usr/bin/codesign", ["-dvv", appPath])
+        // Unsigned bundle: no trust to protect, safe to thin.
+        guard result.status == 0 else { return false }
+        let info = result.stdout + result.stderr
+        // An already ad-hoc bundle has nothing Gatekeeper would have trusted,
+        // so re-thinning + re-ad-hoc-signing leaves it no worse off.
+        return !info.contains("Signature=adhoc")
     }
 
     private func fileSize(at path: String) -> Int64 {
