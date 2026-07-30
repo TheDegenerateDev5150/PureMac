@@ -350,7 +350,7 @@ struct MainWindow: View {
                 Button {
                     theme.appearance = appearance
                 } label: {
-                    Label(appearance.label, systemImage: appearance.icon)
+                    Label(LocalizedStringKey(appearance.label), systemImage: appearance.icon)
                 }
             }
         } label: {
@@ -366,7 +366,7 @@ struct MainWindow: View {
 
                 Spacer(minLength: 6)
 
-                Text(theme.appearance.label)
+                Text(LocalizedStringKey(theme.appearance.label))
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(.secondary)
 
@@ -382,7 +382,7 @@ struct MainWindow: View {
         .menuStyle(.borderlessButton)
         .help("Change appearance")
         .accessibilityLabel("Appearance")
-        .accessibilityValue(theme.appearance.label)
+        .accessibilityValue(Text(LocalizedStringKey(theme.appearance.label)))
     }
 
     private var sidebarLabelColor: Color {
