@@ -41,6 +41,7 @@
 "Suggested for you" = "Sugerencias para ti";
 "Found so far" = "Encontrado hasta ahora";
 "By category" = "Por categoría";
+"Category" = "Categoría";
 "%@ is using %@" = "%@ está usando %@";
 "Grant Full Disk Access for full results" = "Concede acceso total al disco para obtener resultados completos";
 "Without it, most caches and uninstall flows fail." = "Sin él, la mayoría de cachés y desinstalaciones fallan.";
@@ -121,6 +122,8 @@
 "Orphaned Files (%lld)" = "Archivos huérfanos (%lld)";
 "Remove Selected (%lld)" = "Eliminar seleccionados (%lld)";
 "Some files could not be removed" = "Algunos archivos no se pudieron eliminar";
+"blocked by safety policy" = "bloqueado por la política de seguridad";
+"%lld item(s) failed to delete.\n\n%@" = "No se pudieron eliminar %lld elemento(s).\n\n%@";
 
 /* Onboarding */
 "Back" = "Atrás";
@@ -151,7 +154,7 @@
 "PureMac can now manage protected files." = "PureMac ahora puede gestionar archivos protegidos.";
 "You're Ready" = "Todo listo";
 "%lld/%lld protected locations accessible" = "%lld/%lld ubicaciones protegidas accesibles";
-"Some features will be limited. You can grant Full Disk Access later in System Settings." = "Algunas funciones serán limitadas. Puedes conceder el acceso total al disco más tarde en Ajustes del Sistema.";
+"Some features will be limited without Full Disk Access. You can grant it later in Settings." = "Algunas funciones estarán limitadas sin acceso total al disco. Puedes concederlo más tarde en Ajustes.";
 "Trash" = "Papelera";
 "Mail Data" = "Datos de Mail";
 "Safari Data" = "Datos de Safari";
@@ -159,6 +162,10 @@
 "Documents" = "Documentos";
 "TCC Database" = "Base de datos TCC";
 "Blocked" = "Bloqueado";
+
+/* FDA demo system apps */
+"Finder" = "Finder";
+"Terminal" = "Terminal";
 
 /* Settings */
 "General" = "General";
@@ -185,6 +192,8 @@
 "Arabic" = "Árabe";
 "Polish" = "Polaco";
 "Portuguese (Brazil)" = "Portugués (Brasil)";
+"Russian" = "Ruso";
+"Ukrainian" = "Ucraniano";
 "Chinese (Simplified)" = "Chino (simplificado)";
 "Chinese (Traditional)" = "Chino (tradicional)";
 "Safety" = "Seguridad";
@@ -206,6 +215,8 @@
 "GitHub Repository" = "Repositorio de GitHub";
 "Report an Issue" = "Informar de un problema";
 "MIT License" = "Licencia MIT";
+"Updates" = "Actualizaciones";
+"Check for Updates" = "Buscar actualizaciones";
 
 /* Cleaning categories (CleaningCategory.rawValue) */
 "System Junk" = "Basura del sistema";
@@ -238,13 +249,23 @@
 "Unused CPU architecture slices in app binaries" = "Arquitecturas de CPU sin usar en los binarios de las apps";
 "Unused app localizations" = "Localizaciones de apps sin usar";
 
+/* AI Apps scan item names */
+"Ollama Logs" = "Registros de Ollama";
+"Ollama Cache" = "Caché de Ollama";
+"Ollama Electron Cache" = "Caché de Electron de Ollama";
+"Ollama WebKit Data" = "Datos de WebKit de Ollama";
+"Ollama Saved State" = "Estado guardado de Ollama";
+"Ollama CLI Prompt History (Optional)" = "Historial de indicaciones de Ollama CLI (opcional)";
+"LM Studio Server Logs" = "Registros del servidor de LM Studio";
+"LM Studio Conversations (Optional)" = "Conversaciones de LM Studio (opcional)";
+
 /* Node Cache subcategories */
 "npm cache" = "Caché de npm";
 "yarn classic cache" = "Caché clásica de yarn";
 "pnpm content-addressable store" = "Almacén direccionable de pnpm";
 
 /* Docker Cache helper */
-"Reclaimable (run `docker system prune -af`)" = "Recuperable (ejecuta `docker system prune -af`)";
+"Docker prune (stopped containers, dangling images, build cache)" = "Limpieza de Docker (contenedores detenidos, imágenes sin usar y caché de compilación)";
 
 /* Schedule intervals (ScheduleInterval.rawValue) */
 "Every Hour" = "Cada hora";
@@ -306,6 +327,8 @@
 "1-tap setup. We'll auto-retry what failed." = "Configuración en un toque. Reintentaremos automáticamente lo que falle.";
 "Fix permission" = "Arreglar permiso";
 "Dismiss" = "Descartar";
+"Fix" = "Corregir";
+"Set up" = "Configurar";
 
 /* Onboarding v2 */
 "Reclaim your Mac" = "Recupera tu Mac";
@@ -342,7 +365,6 @@
 "Free" = "Libre";
 
 /* UI polish (v2.8.0): leftover groups + sound toggle */
-"Application" = "Aplicación";
 "Caches" = "Cachés";
 "Application Support" = "Soporte de aplicaciones";
 "Preferences" = "Preferencias";
@@ -379,3 +401,6 @@
 "Disk" = "Disco";
 "Open PureMac" = "Abrir PureMac";
 "Quit PureMac" = "Salir de PureMac";
+
+/* Finder Service */
+"Select an application (.app) to uninstall." = "Selecciona una aplicación (.app) para desinstalarla.";
