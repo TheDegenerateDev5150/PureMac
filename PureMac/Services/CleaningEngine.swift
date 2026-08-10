@@ -432,6 +432,19 @@ actor CleaningEngine {
     /// allow-listed - scanLargeFiles emits per-file items instead, so those
     /// deletions can still happen through the explicit per-item flow.
     private func isSafeToDelete(resolvedPath: String) -> Bool {
+        // Cloud File Provider state is never deletable, whatever category asked
+        // and whichever allowed root it happens to sit under (issue #142).
+        // Checked before the allowlist because several provider directories live
+        // inside ~/Library/Caches and ~/Library/Application Support, which are
+        // themselves allowed roots.
+        if ProviderPaths.isProviderOwned(resolvedPath) {
+            Logger.shared.log(
+                "Refusing to delete cloud provider state: \(resolvedPath)",
+                level: .warning
+            )
+            return false
+        }
+
         let home = fileManager.homeDirectoryForCurrentUser.path
         let allowedRoots = [
             "\(home)/Library/Caches",

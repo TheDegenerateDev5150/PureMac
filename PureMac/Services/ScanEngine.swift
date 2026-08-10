@@ -132,12 +132,14 @@ actor ScanEngine {
 
     private func scanUserCache() -> CategoryResult {
         var items: [CleanableItem] = []
-        // Exclude cache roots claimed by dedicated categories to avoid double-counting.
-        let excludedRootPaths = Set([
+        // Exclude cache roots claimed by dedicated categories to avoid double-counting,
+        // plus cloud File Provider state, which lives under Caches but is a live
+        // database rather than reclaimable junk (issue #142).
+        let excludedRootPaths = Set(([
             "\(home)/Library/Caches/Homebrew",
             "\(home)/Library/Caches/com.electron.ollama",
             "\(home)/Library/Caches/ollama",
-        ].map(normalizePath))
+        ] + ProviderPaths.deniedRoots).map(normalizePath))
 
         // Dynamically enumerate ~/Library/Caches/ so every subdirectory is visible
         let cachePath = "\(home)/Library/Caches"
