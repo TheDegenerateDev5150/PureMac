@@ -19,15 +19,15 @@ struct MainWindow: View {
         .largeFiles,
     ]
 
+    // Filtered against `scannable` so a category withdrawn there (see
+    // CleaningCategory.appModifying) cannot linger here as a dead sidebar row.
     private static let advancedCategories: [CleaningCategory] = [
         .aiApps,
         .xcodeJunk,
         .brewCache,
         .nodeCache,
         .dockerCache,
-        .universalBinaries,
-        .languageFiles,
-    ]
+    ].filter(CleaningCategory.scannable.contains)
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
