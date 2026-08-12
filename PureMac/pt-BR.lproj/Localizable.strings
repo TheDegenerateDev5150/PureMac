@@ -456,3 +456,6 @@
 "Twelve-layer storage inspection model" = "Modelo de inspeção de armazenamento em doze camadas";
 "Xcode and package tools" = "Xcode e gerenciadores";
 "Your Mac is in good shape." = "Seu Mac está em boa forma.";
+
+/* Simulator runtimes */
+"Simulator runtime" = "Runtime do simulador";

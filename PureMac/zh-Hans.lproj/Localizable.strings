@@ -456,3 +456,6 @@
 "Twelve-layer storage inspection model" = "Twelve-layer storage inspection model";
 "Xcode and package tools" = "Xcode and package tools";
 "Your Mac is in good shape." = "Your Mac is in good shape.";
+
+/* Simulator runtimes */
+"Simulator runtime" = "模拟器运行时";
