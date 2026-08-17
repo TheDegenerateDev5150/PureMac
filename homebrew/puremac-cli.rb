@@ -7,7 +7,6 @@ class PuremacCli < Formula
   license "MIT"
 
   depends_on macos: :big_sur
-  depends_on :macos
 
   def install
     bin.install "puremac"
