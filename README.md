@@ -68,6 +68,21 @@ xcodebuild -project PureMac.xcodeproj -scheme PureMac -configuration Release \
 open build/Build/Products/Release/PureMac.app
 ```
 
+### Command line (beta)
+
+Prefer the terminal? `puremac` is a CLI companion that reuses the same cleaning
+logic and safety rules to clear developer caches, purge project build artifacts,
+and analyze disk usage.
+
+```bash
+brew install momenbasel/tap/puremac-cli
+puremac clean dev --dry-run
+```
+
+![puremac scanning and listing exactly what will be deleted before removing anything](cli/screenshots/clean.png)
+
+See [`cli/README.md`](cli/README.md) for the full command reference.
+
 ## How it compares
 
 |  | **PureMac** | CleanMyMac | Pearcleaner | Mole | OnyX |
