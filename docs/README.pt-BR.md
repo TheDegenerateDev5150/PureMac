@@ -71,10 +71,10 @@ open build/Build/Products/Release/PureMac.app
 
 ### Linha de comando (beta)
 
-Prefere o terminal? O `puremac` é um companheiro de linha de comando que
-reutiliza as mesmas regras de limpeza e segurança para remover caches de
-desenvolvimento, limpar artefatos de build de projetos e analisar o uso do
-disco.
+Prefere o terminal? O `puremac` é um companheiro de linha de comando
+independente, com comandos de limpeza e verificações de segurança próprios.
+Alguns comandos removem permanentemente os arquivos selecionados; comece com
+`--dry-run`, revise cada caminho e só então confirme deliberadamente.
 
 ```bash
 brew install momenbasel/tap/puremac-cli
@@ -96,7 +96,7 @@ Consulte [`cli/README.md`](../cli/README.md) para ver a referência completa de 
 | Sem assinatura | **Sim** | Não | Sim | — | Sim |
 | Assinado + notarizado | **Sim** | Sim | Sim | — | Sim |
 | Desinstalador de apps + órfãos | **Sim** | Sim | Sim | Parcial | Não |
-| Só Lixeira (recuperável) | **Sim** | Parcial | Sim | Parcial | Não |
+| Lixeira no desinstalador de apps | **Sim** | Parcial | Sim | Parcial | Não |
 | Honesto sobre espaço purgável | **Sim** | Não | n/a | n/a | n/a |
 
 <sub>¹ O Pearcleaner é Apache 2.0 **+ Commons Clause** - código-disponível, mas não aprovado pela OSI (você não pode vendê-lo). O PureMac é MIT de verdade. O comparativo reflete recursos documentados publicamente em 2026; correções são bem-vindas via PR.</sub>
@@ -105,11 +105,11 @@ Consulte [`cli/README.md`](../cli/README.md) para ver a referência completa de 
 
 Um limpador de Mac pede a permissão mais profunda que o macOS concede - o Acesso Total ao Disco - e depois apaga os seus arquivos. Isso exige um nível de confiança que a categoria passou vinte anos queimando. Este é o contrato que o PureMac assume consigo mesmo, e você pode verificar cada linha dele no código-fonte:
 
-- **Lixeira, nunca `rm`.** Tudo o que o PureMac remove vai para a Lixeira via `FileManager.trashItem`. Se foi um engano, basta arrastar de volta. Nada é destruído ou desvinculado.
+- **O comportamento de remoção é explícito.** Os fluxos do desinstalador tentam mover os arquivos de apps selecionados para a Lixeira. A limpeza do painel/das categorias, a limpeza automática agendada, a remoção de órfãos, o esvaziamento da Lixeira, a limpeza do Docker/de runtimes do Xcode, a limpeza autorizada como administrador e a CLI podem apagar dados permanentemente. Revise as seleções e use o modo de simulação da CLI.
 - **Sem telemetria, nunca.** Sem analytics, sem relatórios de falha, sem "estatísticas anônimas de uso", sem chamadas de rede para nós. O app não sabe que você existe.
 - **Sem urgência fabricada.** Nenhum selo dramático de "47 GB de lixo detectados!", nenhum contador vermelho de alarme, nenhum "seu Mac está em risco". Mostramos fatos neutros e deixamos você decidir.
 - **Sem promessas exageradas.** Não afirmamos "recuperar espaço purgável", "turbinar a RAM" nem "acelerar o seu Mac" - coisas que nenhum app consegue fazer de forma confiável. Veja a nota sobre espaço purgável abaixo.
-- **Você revisa antes de qualquer remoção.** Nada é apagado automaticamente. Cada item mostra o caminho real com Revelar no Finder, e caminhos de sistema de alto risco são excluídos de forma fixa no código.
+- **Seleção revisável.** A limpeza do painel/das categorias e a remoção de um único arquivo de app pedem confirmação. A remoção em lote de arquivos de apps e de órfãos age sobre a seleção explícita sem uma segunda confirmação. A limpeza automática agendada é executada sem interação depois de ativada, e linhas baseadas em ferramentas, como a limpeza do Docker, podem não ter um caminho revelável.
 - **Auditável.** É MIT. O código exato que decide o que é removido está em [`PureMac/Services`](../PureMac/Services) e [`PureMac/Logic/Scanning`](../PureMac/Logic/Scanning). Leia. Faça um fork. Publique o seu próprio.
 
 Se algum dia o PureMac adicionar telemetria, um paywall sobre recursos essenciais ou um escaneamento baseado em medo, ele terá se tornado exatamente aquilo que foi criado para substituir. Cobre isso de nós.
@@ -162,21 +162,18 @@ O onboarding do primeiro uso guia a concessão da permissão com uma prévia ani
 O que o PureMac *não* faz:
 - Não coleta telemetria, relatórios de falha nem análises de uso.
 - Não exige conexão de rede para funcionar.
-- Não move dados para lugar nenhum além da Lixeira.
+- Não envia nem transmite caminhos escaneados ou dados removidos.
 
 ## Solução de problemas
 
 ### O Launchpad / Dock mostra um ícone desatualizado ou sem cor do PureMac
 
-O macOS faz cache agressivo de ícones de apps no LaunchServices. Após uma **reinstalação ou atualização** via Homebrew, o Dock e o Launchpad podem continuar exibindo o ícone antigo em cache. O cask do PureMac agora executa `lsregister -f` na instalação para atualizá-lo automaticamente, mas se um ícone desatualizado persistir, redefina o cache manualmente:
+O macOS faz cache agressivo de ícones de apps no LaunchServices. Após uma **reinstalação ou atualização** via Homebrew, o Dock e o Launchpad podem continuar exibindo o ícone antigo em cache. O cask do PureMac executa `lsregister -f` na instalação para atualizá-lo automaticamente. Se o ícone desatualizado persistir, registre novamente apenas o PureMac e reinicie o Dock (ajuste o caminho se você instalou o app em outro local):
 
 ```bash
-# Limpa os caches de ícones e reconstrói o banco de dados do LaunchServices
-sudo rm -rfv /Library/Caches/com.apple.iconservices.store
-sudo find /private/var/folders/ \( -name com.apple.dock.iconcache -or -name com.apple.iconservices \) -exec rm -rfv {} \; 2>/dev/null
 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
-  -kill -r -domain local -domain user -domain system
-killall Dock; killall Finder
+  -f "/Applications/PureMac.app"
+killall Dock
 ```
 
 Dê um minuto para o cache se repovoar e abra o PureMac uma vez. Se ainda persistir, uma reinicialização (ou boot em Modo de Segurança) força a reconstrução completa.
@@ -225,11 +222,11 @@ Componentes-chave:
 
 ## Segurança
 
-- Prevenção de ataques por symlink: os caminhos são resolvidos antes da validação e re-resolvidos imediatamente antes do unlink para fechar janelas de TOCTOU.
-- Limpeza por allow-list: um caminho que não esteja dentro de uma raiz segura explícita é recusado, mesmo na passagem em nível de usuário.
-- O escalonamento de admin é limitado por uma allow-list *mais estreita* (bundles de apps, recibos de pacotes, plists de launch) do que a do limpador normal — itens do root só podem ser removidos dentro dessas raízes.
+- Redução do risco de symlinks no limpador principal: o `CleaningEngine` resolve os caminhos antes da validação e novamente perto da remoção em nível de usuário. Como a remoção final ainda usa o caminho, isso reduz, mas não elimina, todas as condições de corrida TOCTOU; os outros fluxos de remoção têm verificações próprias.
+- Allow-list do limpador principal: o `CleaningEngine` recusa, na passagem em nível de usuário, caminhos fora das raízes seguras explícitas. O desinstalador de apps e o fluxo de órfãos usam políticas próprias.
+- O escalonamento de administrador usa sua própria allow-list explícita; itens do root fora das raízes permitidas são recusados.
 - Proteção de apps do sistema: os bundles da Apple não podem ser desinstalados, independentemente da seleção.
-- Toda operação destrutiva exige confirmação explícita por padrão. O interruptor que desativa essa confirmação fica escondido nos Ajustes.
+- A confirmação varia conforme o fluxo: a limpeza do painel/das categorias e a remoção de um único arquivo de app pedem confirmação; a remoção em lote de arquivos de apps e de órfãos age sobre a seleção explícita sem uma segunda confirmação; a limpeza automática agendada é executada sem confirmação a cada rodada depois de ativada.
 
 Se você encontrar uma vulnerabilidade, abra um aviso de segurança privado (security advisory) em vez de uma issue pública.
 

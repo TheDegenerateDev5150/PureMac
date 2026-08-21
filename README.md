@@ -71,9 +71,9 @@ open build/Build/Products/Release/PureMac.app
 
 ### Command line (beta)
 
-Prefer the terminal? `puremac` is a CLI companion that reuses the same cleaning
-logic and safety rules to clear developer caches, purge project build artifacts,
-and analyze disk usage.
+Prefer the terminal? `puremac` is an independent CLI companion with its own
+cleanup commands and safety checks. Some commands permanently remove selected
+files, so start with `--dry-run`, review every path, and then confirm deliberately.
 
 ```bash
 brew install momenbasel/tap/puremac-cli
@@ -95,7 +95,7 @@ See [`cli/README.md`](cli/README.md) for the full command reference.
 | No subscription | **Yes** | No | Yes | — | Yes |
 | Signed + notarized | **Yes** | Yes | Yes | — | Yes |
 | App uninstaller + orphans | **Yes** | Yes | Yes | Partial | No |
-| Trash-only (recoverable) | **Yes** | Partial | Yes | Partial | No |
+| App-uninstall Trash support | **Yes** | Partial | Yes | Partial | No |
 | Honest about purgeable space | **Yes** | No | n/a | n/a | n/a |
 
 <sub>¹ Pearcleaner is Apache 2.0 **+ Commons Clause** - source-available but not OSI-approved (you may not sell it). PureMac is true MIT. Comparison reflects publicly documented features as of 2026; corrections welcome via PR.</sub>
@@ -104,11 +104,11 @@ See [`cli/README.md`](cli/README.md) for the full command reference.
 
 A Mac cleaner asks for the deepest permission macOS grants - Full Disk Access - and then deletes your files. That demands a level of trust the category has spent twenty years burning. Here's the contract PureMac holds itself to, and you can verify every line of it in the source:
 
-- **Trash, never `rm`.** Everything PureMac removes goes to the Trash via `FileManager.trashItem`. If it was wrong, you drag it back. Nothing is shredded or unlinked.
+- **Deletion behavior is explicit.** App-uninstaller flows attempt to move selected app files to the Trash. Dashboard/category cleanup, scheduled auto-clean, orphan removal, Trash emptying, Docker/Xcode runtime cleanup, administrator-authorized cleanup, and CLI cleanup can permanently delete data. Review selections carefully and use CLI dry runs.
 - **No telemetry, ever.** No analytics, no crash reporting, no "anonymous usage stats," no network calls to us. The app doesn't know you exist.
 - **No fake urgency.** No dramatized "47 GB of junk detected!" badge, no red alarm counters, no "your Mac is at risk." We show you neutral facts and let you decide.
 - **No overpromising.** We don't claim to "reclaim purgeable space," "boost RAM," or "speed up your Mac" - things no app can reliably do. See the purgeable-space note below.
-- **You review before anything is removed.** Nothing is auto-deleted. Every item shows its real path with Reveal-in-Finder, and high-risk system paths are hard-excluded in code.
+- **Reviewable selection.** Dashboard/category cleanup and single-file app removal prompt before acting. Bulk app-file and orphan removal act on the explicit selection without another prompt. Scheduled auto-clean is unattended once enabled, and tool-backed rows such as Docker cleanup may not have a revealable path.
 - **Auditable.** It's MIT. The exact code that decides what gets removed is in [`PureMac/Services`](PureMac/Services) and [`PureMac/Logic/Scanning`](PureMac/Logic/Scanning). Read it. Fork it. Ship your own.
 
 If PureMac ever adds telemetry, a paywall on core features, or a fear-based scan, it will have become the thing it was built to replace. Hold us to this.
@@ -161,21 +161,18 @@ The first-launch onboarding walks you through granting it with an animated previ
 What PureMac does *not* do:
 - It does not collect telemetry, crash reports, or usage analytics.
 - It does not require a network connection to operate.
-- It does not move data anywhere except the Trash.
+- It does not upload or transmit scanned paths or deleted data.
 
 ## Troubleshooting
 
 ### Launchpad / Dock shows a stale or dull PureMac icon
 
-macOS aggressively caches app icons in LaunchServices. After a Homebrew **reinstall or upgrade** the Dock and Launchpad can keep showing the old cached icon. PureMac's cask now runs `lsregister -f` on install to refresh it automatically, but if a stale icon persists, reset the cache manually:
+macOS aggressively caches app icons in LaunchServices. After a Homebrew **reinstall or upgrade** the Dock and Launchpad can keep showing the old cached icon. PureMac's cask runs `lsregister -f` on install to refresh it automatically. If a stale icon persists, re-register only PureMac and restart the Dock (adjust the app path if you installed it elsewhere):
 
 ```bash
-# Clear the icon caches and rebuild the LaunchServices database
-sudo rm -rfv /Library/Caches/com.apple.iconservices.store
-sudo find /private/var/folders/ \( -name com.apple.dock.iconcache -or -name com.apple.iconservices \) -exec rm -rfv {} \; 2>/dev/null
 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
-  -kill -r -domain local -domain user -domain system
-killall Dock; killall Finder
+  -f "/Applications/PureMac.app"
+killall Dock
 ```
 
 Give it a minute to re-seed, then open PureMac once. If it still sticks, a restart (or Safe Mode boot) forces a full rebuild.
@@ -224,11 +221,11 @@ Key components:
 
 ## Security
 
-- Symlink attack prevention: paths are resolved before validation, re-resolved immediately before unlink to close TOCTOU windows.
-- Allow-list cleaning: a path that doesn't sit inside an explicit safe-root is refused, even for the user-level pass.
-- Admin escalation is gated by a *narrower* allow-list (app bundles, package receipts, launch plists) than the normal cleaner — root-owned items can only be removed inside those roots.
+- Core-cleaner symlink-risk reduction: `CleaningEngine` resolves paths before validation and again near user-level deletion. Because final removal remains path-based, this narrows but cannot eliminate every TOCTOU race; other removal workflows have separate checks.
+- Core-cleaner allow-list: `CleaningEngine` refuses a user-level path outside its explicit safe roots. App-uninstaller and orphan flows use their own policies.
+- Admin escalation is gated by its own explicit allow-list; root-owned items outside those permitted roots are refused.
 - System app protection: Apple's bundles cannot be uninstalled, regardless of selection.
-- All destructive operations require explicit confirmation by default. The toggle that disables that confirmation is buried in Settings.
+- Confirmation varies by workflow: dashboard/category cleanup and single-file app removal prompt; bulk app-file and orphan removal act on the explicit selection without another prompt; scheduled auto-clean is unattended after enablement.
 
 If you find a vulnerability, please open a private security advisory rather than a public issue.
 

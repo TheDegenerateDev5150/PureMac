@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Local mirror of .github/workflows/release.yml. Use for emergency hotfixes
-# when CI is unavailable. Requires:
+# Local mirror of .github/workflows/release.yml for producing and validating
+# release artifacts. The tag-triggered CI workflow remains the canonical
+# publisher. Requires:
 #   - Developer ID Application identity in your login keychain
 #   - notarytool keychain profile already stored, e.g.:
 #       xcrun notarytool store-credentials AC_NOTARY \
@@ -27,7 +28,47 @@ ZIP="build/PureMac-${VERSION}.zip"
 
 cd "$(dirname "$0")/.."
 
-PROJ_VERSION=$(grep -E '^\s*MARKETING_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
+SEMVER_RE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+if [[ ! "${VERSION}" =~ ${SEMVER_RE} ]]; then
+  echo "ERROR: version must be strict SemVer core (for example, 2.9.8; no leading zeroes): ${VERSION}" >&2
+  exit 1
+fi
+
+BUILD_SHA=$(git rev-parse 'HEAD^{commit}')
+TAG="v${VERSION}"
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "ERROR: tracked release inputs must be committed before building artifacts" >&2
+  exit 1
+fi
+UNTRACKED_INPUTS=$(git ls-files --others --exclude-standard -- PureMac project.yml PureMac.xcodeproj)
+if [[ -n "${UNTRACKED_INPUTS}" ]]; then
+  echo "ERROR: untracked release inputs must be committed before building artifacts:" >&2
+  printf '%s\n' "${UNTRACKED_INPUTS}" >&2
+  exit 1
+fi
+
+git fetch --no-tags origin main
+REMOTE_MAIN_SHA=$(git rev-parse 'origin/main^{commit}')
+if [[ "${BUILD_SHA}" != "${REMOTE_MAIN_SHA}" ]]; then
+  echo "ERROR: current commit ${BUILD_SHA} is not the latest origin/main commit ${REMOTE_MAIN_SHA}" >&2
+  exit 1
+fi
+
+if LOCAL_TAG_SHA=$(git rev-parse "${TAG}^{commit}" 2>/dev/null) && [[ "${LOCAL_TAG_SHA}" != "${BUILD_SHA}" ]]; then
+  echo "ERROR: local tag ${TAG} resolves to ${LOCAL_TAG_SHA}, not current commit ${BUILD_SHA}" >&2
+  exit 1
+fi
+
+if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+  git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+  TAG_SHA=$(git rev-parse "${TAG}^{commit}")
+  if [[ "${TAG_SHA}" != "${BUILD_SHA}" ]]; then
+    echo "ERROR: remote tag ${TAG} resolves to ${TAG_SHA}, not current commit ${BUILD_SHA}" >&2
+    exit 1
+  fi
+fi
+
+PROJ_VERSION=$(sed -nE 's/^[[:space:]]*MARKETING_VERSION:[[:space:]]*"([^"]+)".*/\1/p' project.yml)
 if [[ "${PROJ_VERSION}" != "${VERSION}" ]]; then
   echo "ERROR: project.yml MARKETING_VERSION (${PROJ_VERSION}) != ${VERSION}" >&2
   exit 1
@@ -77,9 +118,24 @@ echo "==> verify codesign"
 codesign --verify --deep --strict --verbose=2 "${APP}"
 codesign -dvv "${APP}" 2>&1 | grep -E "Identifier|TeamIdentifier|flags|Authority"
 codesign -dvv "${APP}" 2>&1 | grep -q "flags=0x10000(runtime)" || { echo "Hardened runtime missing"; exit 1; }
-lipo -archs "${APP}/Contents/MacOS/PureMac"
+APP_ARCHS=$(lipo -archs "${APP}/Contents/MacOS/PureMac")
+grep -qw arm64 <<< "${APP_ARCHS}" || { echo "arm64 slice missing" >&2; exit 1; }
+grep -qw x86_64 <<< "${APP_ARCHS}" || { echo "x86_64 slice missing" >&2; exit 1; }
+echo "Architectures: ${APP_ARCHS}"
 
-echo "==> dmg"
+echo "==> notarize app zip (profile: ${NOTARY_PROFILE})"
+NOTARY_ZIP="build/PureMac-app-notary.zip"
+ditto -c -k --keepParent --sequesterRsrc "${APP}" "${NOTARY_ZIP}"
+xcrun notarytool submit "${NOTARY_ZIP}" \
+  --keychain-profile "${NOTARY_PROFILE}" \
+  --wait --timeout 30m
+xcrun stapler staple "${APP}"
+xcrun stapler validate "${APP}"
+codesign --verify --deep --strict --verbose=2 "${APP}"
+spctl --assess --type execute --verbose=4 "${APP}"
+rm -f "${NOTARY_ZIP}"
+
+echo "==> dmg from stapled app"
 create-dmg \
   --volname "PureMac ${VERSION}" \
   --window-size 540 360 \
@@ -91,13 +147,7 @@ create-dmg \
   "${DMG}" \
   build/export/PureMac.app
 codesign --sign "${SIGN_ID}" --timestamp "${DMG}"
-
-echo "==> notarize app zip (profile: ${NOTARY_PROFILE})"
-ditto -c -k --keepParent --sequesterRsrc "${APP}" build/PureMac-app.zip
-xcrun notarytool submit build/PureMac-app.zip \
-  --keychain-profile "${NOTARY_PROFILE}" \
-  --wait --timeout 30m
-xcrun stapler staple "${APP}"
+codesign --verify --verbose=2 "${DMG}"
 
 echo "==> notarize dmg"
 xcrun notarytool submit "${DMG}" \
@@ -122,5 +172,5 @@ echo "  sha256: ${DMG_SHA}"
 echo "ZIP: ${ZIP}"
 echo "  sha256: ${ZIP_SHA}"
 echo ""
-echo "Next: gh release create v${VERSION} ${DMG} ${ZIP} --title \"PureMac v${VERSION}\""
-echo "Then: bump homebrew/puremac.rb sha256 to ${ZIP_SHA}"
+echo "Canonical publish: push ${TAG} at commit ${BUILD_SHA}; the tag-triggered CI workflow uploads assets and updates both Homebrew casks."
+echo "This local script does not create tags, publish a GitHub release, or update Homebrew."
